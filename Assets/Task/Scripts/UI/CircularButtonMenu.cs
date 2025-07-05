@@ -12,13 +12,15 @@ public class CircularButtonMenu : MonoBehaviour
     [SerializeField] private float openRadius = 200f;
 
     [Header("Button References")]
-    [SerializeField] private string[] menuHeading = new string[5]; 
+    [SerializeField] private string[] menuHeading = new string[5];
     [SerializeField] private Button[] menuButtons = new Button[5];
     [SerializeField] private Transform centerPoint;
 
     [Header("Visual Settings")]
     [SerializeField] private float selectedButtonScale = 1.2f;
     [SerializeField] private float normalButtonScale = 1f;
+    [SerializeField] private Sprite[] normalSprites = new Sprite[5];
+    [SerializeField] private Sprite[] selectedSprites = new Sprite[5];
 
     // Core state
     private int selectedButtonIndex = 2;
@@ -29,6 +31,7 @@ public class CircularButtonMenu : MonoBehaviour
     // Cached components and data
     private Transform[] buttonTransforms;
     private Vector3[] initialScales;
+    private Image[] buttonImages;
     private readonly int buttonCount = 5;
 
     // Constants for optimization
@@ -47,6 +50,7 @@ public class CircularButtonMenu : MonoBehaviour
         CacheComponents();
         PreCalculateAngles();
         SetupButtonListeners();
+        InitializeButtonSprites();
         CalculateInitialPositions(false);
     }
 
@@ -61,6 +65,7 @@ public class CircularButtonMenu : MonoBehaviour
         int length = menuButtons.Length;
         buttonTransforms = new Transform[length];
         initialScales = new Vector3[length];
+        buttonImages = new Image[length];
 
         for (int i = 0; i < length; i++)
         {
@@ -68,6 +73,7 @@ public class CircularButtonMenu : MonoBehaviour
             {
                 buttonTransforms[i] = menuButtons[i].transform;
                 initialScales[i] = buttonTransforms[i].localScale;
+                buttonImages[i] = menuButtons[i].GetComponent<Image>();
             }
         }
     }
@@ -102,6 +108,7 @@ public class CircularButtonMenu : MonoBehaviour
         }
         else
         {
+            UpdateAllButtonSprites(true);
             StartCoroutine(AnimateToFullCircle());
         }
     }
@@ -118,8 +125,11 @@ public class CircularButtonMenu : MonoBehaviour
 
     void SelectButton(int newSelectedIndex)
     {
+        int previousSelectedIndex = selectedButtonIndex;
         selectedButtonIndex = newSelectedIndex;
         UIManager.Instance.gamePlayPanel.heaingText.text = menuHeading[selectedButtonIndex];
+        // Update button visuals immediately
+        UpdateButtonVisuals(previousSelectedIndex, selectedButtonIndex);
         StartCoroutine(AnimateCircularRotation());
     }
 
@@ -177,29 +187,58 @@ public class CircularButtonMenu : MonoBehaviour
 
     void CalculateTargetAngles(ButtonAnimationData[] animData, Vector3[] targetPositions, bool isFullCircle)
     {
+
+        if (isFullCircle)
+        {
+            // For full circle, just set target angles directly
+            for (int i = 0; i < menuButtons.Length; i++)
+            {
+                Vector3 targetPos = targetPositions[i];
+                animData[i].targetAngle = Mathf.Atan2(targetPos.y, targetPos.x) * Mathf.Rad2Deg;
+            }
+            return;
+        }
+
+        // For half circle, determine rotation direction based on selected button
+        float selectedButtonStartAngle = animData[selectedButtonIndex].startAngle;
+        Vector3 selectedButtonTargetPos = targetPositions[selectedButtonIndex];
+        float selectedButtonTargetAngle = Mathf.Atan2(selectedButtonTargetPos.y, selectedButtonTargetPos.x) * Mathf.Rad2Deg;
+
+        // Calculate shortest path for selected button
+        float selectedAngleDiff = selectedButtonTargetAngle - selectedButtonStartAngle;
+        while (selectedAngleDiff > 180f) selectedAngleDiff -= 360f;
+        while (selectedAngleDiff < -180f) selectedAngleDiff += 360f;
+
+        // Determine rotation direction (positive = counter-clockwise, negative = clockwise)
+        bool rotateCounterClockwise = selectedAngleDiff > 0;
+
+        // Apply same rotation direction to all buttons
         for (int i = 0; i < menuButtons.Length; i++)
         {
             Vector3 targetPos = targetPositions[i];
             float targetAngle = Mathf.Atan2(targetPos.y, targetPos.x) * Mathf.Rad2Deg;
+            float startAngle = animData[i].startAngle;
+            float angleDiff = targetAngle - startAngle;
 
-            if (!isFullCircle)
+            // Normalize angle difference to [-180, 180] range
+            while (angleDiff > 180f) angleDiff -= 360f;
+            while (angleDiff < -180f) angleDiff += 360f;
+
+            // Force same rotation direction as selected button
+            if (rotateCounterClockwise && angleDiff < 0)
             {
-                // Force clockwise rotation for open state
-                float angleDiff = targetAngle - animData[i].startAngle;
-
-                // Normalize to [-180, 180]
-                while (angleDiff > 180f) angleDiff -= 360f;
-                while (angleDiff < -180f) angleDiff += 360f;
-
-                // Force clockwise if would go counter-clockwise
-                if (angleDiff > 0)
-                    targetAngle = animData[i].startAngle + (angleDiff - 360f);
-                else
-                    targetAngle = animData[i].startAngle + angleDiff;
+                // Selected button goes counter-clockwise, force this button counter-clockwise too
+                angleDiff += 360f;
+            }
+            else if (!rotateCounterClockwise && angleDiff > 0)
+            {
+                // Selected button goes clockwise, force this button clockwise too
+                angleDiff -= 360f;
             }
 
-            animData[i].targetAngle = targetAngle;
+            animData[i].targetAngle = startAngle + angleDiff;
         }
+
     }
 
     IEnumerator PerformAnimation(ButtonAnimationData[] animData, Vector3[] targetPositions, bool isFullCircle)
@@ -252,6 +291,9 @@ public class CircularButtonMenu : MonoBehaviour
                 buttonTransforms[i].localScale = GetTargetScale(i, isFullCircle);
             }
         }
+
+        // Update all button sprites based on circle state
+        UpdateAllButtonSprites(isFullCircle);
     }
 
     Vector3 GetTargetScale(int index, bool isFullCircle)
@@ -317,9 +359,61 @@ public class CircularButtonMenu : MonoBehaviour
             SelectButton(index);
         }
     }
-
     public int GetSelectedButtonIndex() => selectedButtonIndex;
     public bool IsAnimating() => isAnimating;
+
+    // Visual Update Methods
+    private void UpdateButtonVisuals(int previousIndex, int newIndex)
+    {
+        // Update previous button to normal
+        if (previousIndex >= 0 && previousIndex < menuButtons.Length)
+        {
+            SetButtonSprite(previousIndex, false);
+        }
+
+        // Update new button to selected
+        if (newIndex >= 0 && newIndex < menuButtons.Length)
+        {
+            SetButtonSprite(newIndex, true);
+        }
+    }
+
+    private void UpdateAllButtonSprites(bool isFullCircle = false)
+    {
+        for (int i = 0; i < menuButtons.Length; i++)
+        {
+            if (isFullCircle)
+            {
+                // In full circle mode, all buttons use normal sprites
+                SetButtonSprite(i, false);
+            }
+            else
+            {
+                // In half circle mode, only selected button uses selected sprite
+                SetButtonSprite(i, i == selectedButtonIndex);
+            }
+        }
+    }
+
+    private void SetButtonSprite(int index, bool isSelected)
+    {
+        if (index < 0 || index >= buttonImages.Length || buttonImages[index] == null)
+            return;
+
+        Sprite[] targetSpriteArray = isSelected ? selectedSprites : normalSprites;
+
+        if (index < targetSpriteArray.Length && targetSpriteArray[index] != null)
+        {
+            buttonImages[index].sprite = targetSpriteArray[index];
+        }
+    }
+
+    // Initialize button sprites
+    private void InitializeButtonSprites()
+    {
+        // Set initial state based on panel state
+        UpdateAllButtonSprites(!isPanelOpen);
+    }
 
     // Helper struct for animation data
     private struct ButtonAnimationData

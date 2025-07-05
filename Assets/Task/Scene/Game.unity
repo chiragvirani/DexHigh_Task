@@ -147,7 +147,7 @@ RectTransform:
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 1712975253}
   - {fileID: 885633798}
@@ -1134,6 +1134,18 @@ MonoBehaviour:
   centerPoint: {fileID: 885633798}
   selectedButtonScale: 1.4
   normalButtonScale: 1
+  normalSprites:
+  - {fileID: 21300000, guid: c97ce70db55fe1b41887ccaa2c8da62a, type: 3}
+  - {fileID: 21300000, guid: 9d87192f4d0613540a24a1d0a067fa76, type: 3}
+  - {fileID: 21300000, guid: 3b7e3f702815fb849ab03e2c8acedcbd, type: 3}
+  - {fileID: 21300000, guid: 0a2f6e4290c62ef4d83d9d1438644d6f, type: 3}
+  - {fileID: 21300000, guid: f38d98c93a423ef40adba16a4bea9a6a, type: 3}
+  selectedSprites:
+  - {fileID: 21300000, guid: 014675a56d31c2c48a2ccf267da015cd, type: 3}
+  - {fileID: 21300000, guid: 9f407519bfb4f824789bd792e56c7960, type: 3}
+  - {fileID: 21300000, guid: c03be7d403205e941af37ac9e0fbd971, type: 3}
+  - {fileID: 21300000, guid: 04312c90035a685458439f924146066f, type: 3}
+  - {fileID: 21300000, guid: 9b1f9a8379613ac4c9d00ef88d7f018d, type: 3}
 --- !u!1 &1094396905
 GameObject:
   m_ObjectHideFlags: 0
