@@ -185,20 +185,74 @@ public class CircularButtonMenu : MonoBehaviour
         }
     }
 
-    void CalculateTargetAngles(ButtonAnimationData[] animData, Vector3[] targetPositions, bool isFullCircle)
+       void CalculateTargetAngles(ButtonAnimationData[] animData, Vector3[] targetPositions, bool isFullCircle)
     {
-
         if (isFullCircle)
         {
-            // For full circle, just set target angles directly
-            for (int i = 0; i < menuButtons.Length; i++)
-            {
-                Vector3 targetPos = targetPositions[i];
-                animData[i].targetAngle = Mathf.Atan2(targetPos.y, targetPos.x) * Mathf.Rad2Deg;
-            }
-            return;
+            // NEW: For full circle, also determine rotation direction for consistent movement
+            CalculateFullCircleTargetAngles(animData, targetPositions);
         }
+        else
+        {
+            // For half circle, determine rotation direction based on selected button
+            CalculateHalfCircleTargetAngles(animData, targetPositions);
+        }
+    }
 
+  void CalculateFullCircleTargetAngles(ButtonAnimationData[] animData, Vector3[] targetPositions)
+    {
+        // Use the selected button as reference to determine rotation direction
+        int referenceButtonIndex = lastOpenIndex;
+        
+        // Get the selected button's current angle and its target angle in full circle
+        float selectedButtonCurrentAngle = animData[referenceButtonIndex].startAngle;
+        
+        // Calculate the target angle for the selected button in full circle
+        // In full circle, button goes to its original index position
+        float selectedButtonTargetAngle = START_ANGLE + (referenceButtonIndex * closedAngleStep);
+        
+        // Normalize current angle to [0, 360] range
+        while (selectedButtonCurrentAngle < 0f) selectedButtonCurrentAngle += 360f;
+        while (selectedButtonCurrentAngle >= 360f) selectedButtonCurrentAngle -= 360f;
+        
+        // Calculate the shortest path for selected button to its original position
+        float selectedButtonAngleDiff = selectedButtonTargetAngle - selectedButtonCurrentAngle;
+        while (selectedButtonAngleDiff > 180f) selectedButtonAngleDiff -= 360f;
+        while (selectedButtonAngleDiff < -180f) selectedButtonAngleDiff += 360f;
+        
+        // Determine rotation direction based on selected button's shortest path
+        bool rotateCounterClockwise = selectedButtonAngleDiff > 0;
+        
+        // Apply consistent rotation direction to all buttons
+        for (int i = 0; i < menuButtons.Length; i++)
+        {
+            Vector3 targetPos = targetPositions[i];
+            float targetAngle = Mathf.Atan2(targetPos.y, targetPos.x) * Mathf.Rad2Deg;
+            float startAngle = animData[i].startAngle;
+            float angleDiff = targetAngle - startAngle;
+            
+            // Normalize angle difference to [-180, 180] range
+            while (angleDiff > 180f) angleDiff -= 360f;
+            while (angleDiff < -180f) angleDiff += 360f;
+            
+            // Force same rotation direction as determined by the selected button
+            if (rotateCounterClockwise && angleDiff < 0)
+            {
+                angleDiff += 360f;
+            }
+            else if (!rotateCounterClockwise && angleDiff > 0)
+            {
+                angleDiff -= 360f;
+            }
+            
+            animData[i].targetAngle = startAngle + angleDiff;
+        }
+        
+        Debug.Log($"Full Circle Animation: Selected Button {referenceButtonIndex} from {selectedButtonCurrentAngle:F1}° to {selectedButtonTargetAngle:F1}° - Rotating {(rotateCounterClockwise ? "Counter-Clockwise" : "Clockwise")}");
+    }
+
+    void CalculateHalfCircleTargetAngles(ButtonAnimationData[] animData, Vector3[] targetPositions)
+    {
         // For half circle, determine rotation direction based on selected button
         float selectedButtonStartAngle = animData[selectedButtonIndex].startAngle;
         Vector3 selectedButtonTargetPos = targetPositions[selectedButtonIndex];
@@ -239,6 +293,7 @@ public class CircularButtonMenu : MonoBehaviour
             animData[i].targetAngle = startAngle + angleDiff;
         }
 
+        Debug.Log($"Half Circle Animation: Rotating {(rotateCounterClockwise ? "Counter-Clockwise" : "Clockwise")}");
     }
 
     IEnumerator PerformAnimation(ButtonAnimationData[] animData, Vector3[] targetPositions, bool isFullCircle)
